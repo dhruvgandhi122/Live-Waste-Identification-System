@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Waste Identification System</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      background: #0bdce3;
+      padding: 20px;
+    }
+
+    video,
+    canvas,
+    img {
+      width: 320px;
+      height: 240px;
+      border: 2px solid #000;
+      margin: 10px;
+    }
+
+    button {
+      padding: 10px 20px;
+      cursor: pointer;
+      background-color: #2196F3;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    #results {
+      margin-top: 20px;
+      background: rgb(194, 34, 16);
+      padding: 15px;
+      border-radius: 10px;
+      display: inline-block;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Waste Identification System</h1>
+
+  <video id="camera" autoplay></video>
+  <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
+  <br>
+
+  <!--  FIXED BUTTON -->
+  <button id="detectBtn" type="button">Identify Waste</button>
+
+
+  <h3>Detected Image:</h3>
+  <img id="outputImage" />
+
+  <div id="results"></div>
+
+  <script>
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("snapshot");
+    const ctx = canvas.getContext("2d");
+    const btn = document.getElementById("detectBtn");
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(() => alert("Camera access denied"));
+
+    btn.addEventListener("click", async function (e) {
+      e.preventDefault();       //  block reload
+      e.stopPropagation();     //  block bubbling
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append("image", blob, "frame.jpg");
+
+        document.getElementById("results").innerHTML = "Processing...";
+
+        try {
+          // Use absolute path for robustness
+          const res = await fetch("http://127.0.0.1:5502/scan", {
+            method: "POST",
+            body: formData
+          });
+
+          if (!res.ok) throw new Error(`Server returned ${res.status}`);
+
+          const data = await res.json();
+
+          document.getElementById("outputImage").src = data.image_url;
+
+          document.getElementById("results").innerHTML = `
+          <h3>Results</h3>
+          <b>All Detected:</b> ${data.all_detected.join(", ") || "None"}<br>
+          <b>Biodegradable:</b> ${data.biodegradable.join(", ") || "None"}<br>
+          <b>Non-Biodegradable:</b> ${data.non_biodegradable.join(", ") || "None"}<br>
+        `;
+        } catch (err) {
+          console.error(err);
+          document.getElementById("results").innerHTML = `<span style="color:red">Error: ${err.message}</span>`;
+          alert("Error: " + err.message);
+        }
+      }, "image/jpeg");
+    });
+  </script>
+
+</body>
+
+</html>
